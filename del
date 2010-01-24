@@ -1,0 +1,135 @@
+#!/bin/sh
+version="0.4.2"
+copyright="Copyright (c) 2000-2002,2007-2008 Ryoichi KATO <ryo1.kato@gmail.com>"
+#
+# This is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2, or (at your option) any later
+# version.
+#
+# This is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+
+##############################################################################
+# To change the script behavior, modify these environment variables.
+##############################################################################
+
+# Where deleted file goes, and place of log file.
+TRASHDIR=${TRASHDIR:="$HOME/.TRASH"}
+LOG=$TRASHDIR/trash.log
+
+DATE=`date +%Y-%m-%d` # YYYY-MM-DD
+TIME=`date +%H:%M:%S` # hour:minitute:second
+
+
+##############################################################################
+##             You don't have to modify lines hereafter.
+##############################################################################
+
+
+# define a function for displaying help.
+program_name=${0##*/}
+HELP () {
+echo "USAGE : $program_name [-h|--help] FILE1 [FILE2 ...]
+ -h --help     Show this help.
+ -V --version  Show version information.
+"
+}
+
+##
+## parse command line options
+##
+case $1 in
+    "")
+        echo "ERROR: Too few argement" >&2
+        exit 1;;
+    -h|--help)
+        HELP ;
+        exit 0;;
+    -V|--Version)
+        echo "$program_name $version, Written by Ryoichi Kato."
+        echo
+        echo "$copyright"
+        echo "This is free software; see the source for copying conditions."
+        echo "There is NO warranty; not even for MERCHANTABILITY or FITNESS"
+        echo "FOR A PARTICULAR PURPOSE."
+        exit 0;;
+    -i|--interactive)
+        echo "Sorry, interactive mode is not implemented yet."
+        exit 1;;
+    -v|--verbose)
+        echo "Sorry, verbose mode is not implemented yet."
+        exit 1;;
+esac
+
+##
+## Check the existence of $TRASHDIR
+##
+if [ ! -d "$TRASHDIR" ]; then
+    echo "$TRASHDIR doesn't exists. Creating." >&2
+    mkdir -p "$TRASHDIR" || { echo "couldnot mkdir $TRASHDIR"; exit 1 ;}
+    chmod 700 "$TRASHDIR" || { echo "couldnot chmod $TRASHDIR"; exit 1 ;}
+fi
+
+##
+## Do it for each files
+##
+for FILENAME in "$@"
+do
+    # remove trailing "/" char.
+    #FILENAME=`echo $FILENAME | sed -e "s/\/$//"`
+    #NAME=`basename "$FILENAME"`
+    FILENAME=${FILENAME%/}
+    NAME=${FILENAME##*/}
+
+    ## get original path for log
+    case $FILENAME in
+        /*)
+            # if $FILENAME begin with "/", it is absolute path.
+            ORIGINAL_PATH="$FILENAME"
+            ;;
+        *)
+            # else, $FILENAME is relative path.
+            ORIGINAL_PATH="$PWD/$FILENAME"
+            ;;
+    esac
+
+    # if the file is symlink, simply remove it.
+    if [ -L "$FILENAME" -o ! -s "$FILENAME" ]; then
+       rm "$FILENAME"
+       continue
+    fi
+
+    # suffix to avoid dupulicated file name in TRASH
+    NUMBER=1
+    NAMEINTRASH="$DATE-$NUMBER-$NAME"
+
+    # As without locking mechanismx, there can be race condition.
+    # When two 'del' process run simultaneously and try to mv files
+    # with same filename.
+    # But I think it won't happen in most cases because this small
+    # utility is intended to be run directly by terminal-user,
+    # and normal user won't invoke script like this twice at the
+    # same time.
+
+    # increment suffix if the filename "$NAMEINTRASH" already exists.
+    while  [ -e "$TRASHDIR/$NAMEINTRASH" ]
+    do
+           # if your shell doesn't support (()) notation,
+           # comment it out and uncomment next line.
+           # NUMBER=`expr $NUMBER + 1`  # for non Korn shell systems.
+           ((NUMBER++))      # ksh, bash, zsh.
+           NAMEINTRASH=$DATE-$NUMBER-$NAME
+    done
+
+    # OK, now mv the file to $TRASH!
+    if mv "$FILENAME" "$TRASHDIR/$NAMEINTRASH"; then
+        echo "$DATE:$TIME:$ORIGINAL_PATH --> $NAMEINTRASH" >> "$LOG"
+    else
+        echo "Got error!" >&2
+        exit 1
+    fi
+done

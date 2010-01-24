@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# A sample script to cleanup your trash. Put it in your cron.daily/
+# folder (if you have) or add entry to call this script in your crontab.
+#
+
+keep_days=14
+
+TRASHDIR=${TRASHDIR:="$HOME/.TRASH"}
+
+exec find ${TRASHDIR} -maxdepth 1 -ctime +"$keep_days" -exec rm -rf '{}' \;
